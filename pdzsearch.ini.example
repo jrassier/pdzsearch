@@ -1,0 +1,26 @@
+[Database]
+dbname: pdzsearch
+host: 192.168.1.1
+user: pdzsearch
+password: somepass
+# Your standard database connection information for postgres.
+
+[Dirs]
+local: /var/log
+remote: /nfs/logs
+# Workers will look for files to index/read in their local directory first.
+# There's no harm in setting these to the same value.
+# Note that workers will need to be able to write to the 'remote' directory for now.
+
+[Celery]
+broker: redis://192.168.1.1
+backend: redis://192.168.1.1
+# Development and testing was done with redis as a backend but rabbitmq should also work well.
+# We don't do anything complex with Celery so it should be a drop-in replacement.
+# Note that workers insert their results directly into the database, so Celery's
+# backend doesn't see a whole lot of return traffic.
+
+[Index]
+spansize: 104857600
+# Experiment with different span sizes but remember that you'll have to
+# re-index each time...

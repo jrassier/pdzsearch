@@ -1,0 +1,20 @@
+CREATE TABLE chunk
+(id BIGSERIAL,
+ file_id BIGINT NOT NULL,
+ uoffset NUMERIC NOT NULL,
+ length NUMERIC NOT NULL,
+ begin TIMESTAMP WITHOUT TIME ZONE NOT NULL);
+ 
+CREATE TABLE file
+(id BIGSERIAL,
+ name TEXT NOT NULL);
+ 
+CREATE TABLE result
+(id BIGSERIAL,
+ jobcode VARCHAR(255) NOT NULL,
+ file_id BIGINT NOT NULL,
+ chunK_uoffset BIGINT NOT NULL,
+ linenum BIGINT NOT NULL,
+ line TEXT NOT NULL);
+ 
+ 
