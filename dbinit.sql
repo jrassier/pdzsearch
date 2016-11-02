@@ -13,7 +13,9 @@ CREATE TABLE result
 (id BIGSERIAL,
  jobcode VARCHAR(255) NOT NULL,
  file_id BIGINT NOT NULL,
- chunK_uoffset BIGINT NOT NULL,
+ chunk_id BIGINT NOT NULL,
+ chunk_begin TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+ chunk_uoffset BIGINT NOT NULL,
  linenum BIGINT NOT NULL,
  line TEXT NOT NULL);
  

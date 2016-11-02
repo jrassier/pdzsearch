@@ -193,7 +193,7 @@ def buildindex(in_gzfile, idxfile, spansize, year):
 	return result
 
 @app.task
-def grafsearch(jobcode, file_id, in_gzfile, in_idxfile, startoffset, readlen, searchterm, is_regex):
+def grafsearch(jobcode, file_id, in_gzfile, in_idxfile, startoffset, readlen, chunk_id, chunk_begin, searchterm, is_regex):
 	
 	gzfile = resolve_filename(in_gzfile)
 	idxfile = resolve_filename(in_idxfile)
@@ -207,33 +207,45 @@ def grafsearch(jobcode, file_id, in_gzfile, in_idxfile, startoffset, readlen, se
 	#print "Search file %s using idxfile %s from start offset %d for %d bytes with searchterm %s" % (gzfile, idxfile, startoffset, readlen, searchterm)
 	data = graf.extract(gzfile, idxfile, startoffset, readlen)
 	if(data == ""):
-		print "No data"
-		return results
+		return "No data in chunk id %d" % chunk_id
+
+	if(is_regex == True):
+		pat = re2.compile(searchterm)
+
 	num_lines = 0
 	num_results = 0
+	num_regexhits = 0
+	num_regexfail = 0
+	num_stringhits = 0
+	num_stringfail = 0
 	got_result = False
-	
-	if is_regex:
-		print "Compiling regex %s" % (searchterm)
-		pat = re2.compile(searchterm)
-	
+
 	for line in data.splitlines():
 		got_result = False
-		if is_regex:
-			if(re2.search(pat,line)):
+		if(is_regex == True):
+			if(re2.search(pat, line)):
 				got_result = True
+				num_regexhits += 1
 			else:
 				got_result = False
+				num_regexfail += 1
 		else:
-			got_result = (searchterm in line)
-		if (got_result == True):
-			cur.execute("INSERT INTO result (jobcode, file_id, chunk_uoffset, linenum, line) VALUES (%s, %s, %s, %s, %s);", (jobcode, file_id, startoffset, (num_lines+1), (line.rstrip('\n'))))
-			num_results += 1
-		num_lines += 1
+			if(searchterm in line):
+				got_result = True
+				num_stringhits += 1
+			else:
+				got_result = False
+				num_stringfail += 1
 		
+		if(got_result == True):
+			cur.execute("INSERT INTO result (jobcode, file_id, chunk_id, chunk_begin, chunk_uoffset, linenum, line) VALUES (%s, %s, %s, %s, %s, %s, %s);", (jobcode, file_id, chunk_id, chunk_begin, startoffset, (num_lines+1), (line.rstrip('\n'))))
+			num_results += 1
+		
+		num_lines += 1
+
 	conn.commit()
 	conn.close()
-	return ("Searched %d lines and found %d hits" % (num_lines,num_results))
+	return ("Searched chunk %d with %d lines and found %d hits" % (chunk_id, num_lines, num_results))
 
 def resolve_filename(filename):
 

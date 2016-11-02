@@ -24,6 +24,7 @@ import uuid
 import psycopg2
 import ConfigParser
 import sys
+import re2
 
 cfg = ConfigParser.RawConfigParser()
 cfg.read('pdzsearch.ini')
@@ -33,7 +34,7 @@ dbuser = cfg.get('Database','user')
 dbpass = cfg.get('Database','password')
 spansize = cfg.get('Index','spansize')
 
-def indexFiles(filelist, year, idxdb):
+def indexFiles(filelist, year):
 	# This is the list of Celery tasks that we make
 	reslist = []
 
@@ -69,7 +70,7 @@ def determineSearchChunks(starttime, endtime):
 	
 	conn = psycopg2.connect(database=dbname, user=dbuser, password=dbpass, host=dbhost)
 	cur = conn.cursor()
-	chunkSQL = ('SELECT file.id, file.name, chunk.uoffset, chunk.length '
+	chunkSQL = ('SELECT file.id, file.name, chunk.uoffset, chunk.length, chunk.id, chunk.begin '
 				'FROM file, chunk '
 				'WHERE file.id = chunk.file_id '
 				"AND chunk.begin >= COALESCE((SELECT MAX(chunk.begin) FROM chunk WHERE chunk.begin <= to_timestamp(%s) at time zone 'UTC'),to_timestamp(0) at time zone 'UTC') "
@@ -79,7 +80,7 @@ def determineSearchChunks(starttime, endtime):
 	cur.execute(chunkSQL, (starttime, endtime))
 
 	for row in cur.fetchall():
-		chunks.append((int(row[0]), row[1], int(row[2]), int(row[3])))
+		chunks.append((int(row[0]), row[1], int(row[2]), int(row[3]), int(row[4]), row[5]))
 	conn.close()
 	return chunks
 	
@@ -95,7 +96,7 @@ def doSearch(searchterm, starttime, endtime, is_regex):
 		
 		#def grafsearch(jobcode, file_id, in_gzfile, in_idxfile, startoffset, readlen, searchterm):
 		
-		task = grafsearch.delay(jobcode, chunk[0],chunk[1], (chunk[1] + '.idx'),chunk[2], chunk[3], searchterm, is_regex)
+		task = grafsearch.delay(jobcode, chunk[0],chunk[1], (chunk[1] + '.idx'),chunk[2], chunk[3], chunk[4], chunk[5], searchterm, is_regex)
 		tasklist.append(task)
 		#print "  Job %s: Queued %s for file %s, offset %s, len %s" % (jobcode, task.id, chunk[1], chunk[2], chunk[3])
 
@@ -121,12 +122,11 @@ def doSearch(searchterm, starttime, endtime, is_regex):
 	conn = psycopg2.connect(database=dbname, user=dbuser, password=dbpass, host=dbhost)
 	cur = conn.cursor()
 	
-	cur.execute("SELECT line FROM result WHERE jobcode = %s ORDER BY chunk_uoffset ASC, linenum ASC;", (jobcode,))
+	cur.execute("SELECT line FROM result WHERE jobcode = %s ORDER BY chunk_begin ASC, linenum ASC;", (jobcode,))
 	for row in cur:
 		print row[0]
 	conn.close()
 
-is_regex = False
 
 def usage():
 	print "pdzsearch: Parallel, distributed search within gzipped log files"
@@ -146,13 +146,20 @@ def usage():
 	print "Fixes and other contributions welcome at https://github.com/jrassier/pdzsearch"
 	print ""
 
+is_regex = False
+searchterm = ""
+
 if(len(sys.argv) > 1):
 	if(sys.argv[1] == 'index'):
-		print "Index something"
+		year = sys.argv[2]
+		filelist = sys.argv[3:]
+		indexFiles(filelist,year)
+		
 	elif(sys.argv[1] == 'search'):
 		if(len(sys.argv) > 5):
 			if(sys.argv[5].lower() in ("yes", "true", "t", "y", "1")):
 				is_regex = True
+
 		doSearch(sys.argv[2], sys.argv[3], sys.argv[4], is_regex)
 	else:
 		usage()
